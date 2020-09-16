@@ -159,7 +159,25 @@ def variant_calling(reference, input, output):
         if fichero.count('_sorted') == 1:
             os.system('samtools mpileup -B -uf {0} {1}/bwa/{2} | bcftools call -mv -Ov | bcftools view -i "DP>=15" > {1}/pileup/{3}.vcf'.format(reference, output, fichero, os.path.splitext(fichero)[0]))
 
+def anotation(output):
+    """
+    Function that performs the annotation of .vcf files    
+    :param  output: output file name
+    """
 
+    vcfs = obtener_nombre_ficheros(output + '/pileup/', 'vcf')
+    for fichero in vcfs:
+        os.system("awk '{{print $1, $2, $4, $5, $10}}' {0}/pileup/{1} > {0}/annotate/{1}".format(output, fichero))
+        os.system("sed -i 's/chr//g' {0}/annotate/{1}".format(output, fichero))
+        os.system("awk '{{print $1{2}$2{2}$2{2}$3{2}$4{2}$5}}' {0}/annotate/{1} > {0}/annotate/{1}_awk.vcf".format(output, fichero,'"\\t"'))
+        os.system("grep -v '#' {0}/annotate/{1}_awk.vcf > {0}/annotate/{1}_grep.vcf".format(output,fichero))
+        os.system("python genotipo.py -i {0}/annotate/{1}_grep.vcf -o {0}/annotate/{1}".format(output,fichero))
+        os.system("rm {0}/annotate/{1}_awk.vcf".format(output,fichero))
+        os.system("rm {0}/annotate/{1}_grep.vcf".format(output,fichero))
+        os.system("perl annovar/table_annovar.pl {0}/annotate/{1} annovar/humandb/ -buildver hg19 -out {0}/annotate/{1} -remove -protocol refGene,cytoBand,gnomad_exome,clinvar_20131105,exac03,avsnp147,dbnsfp30a -operation g,r,f,f,f,f,f -nastring . -csvout -polish -xref annovar/example/gene_fullxref.txt".format(output,fichero))
+        os.system("awk -f filtro_awk {0}/annotate/{1}.{2}_multianno.csv > {0}/annotate/{1}.{2}_multianno_filtrado.csv".format(output,fichero,"hg19")
+        os.system("python multianno_vcf_annot.py -i {0}/annotate/{1}.{2}_multianno_filtrado.csv -o {0}/annotate/{1}.{2}_multianno_filtrado_genot.csv -v {0}/annotate/{1}".format(output,fichero,"hg19"))
+            
 def main():
     """
     Funcion que ejecuta el programa.
@@ -173,6 +191,7 @@ def main():
     trimming(ficheros, argum.input, argum.output, argum.type)
     alineamiento(argum.reference, argum.input, argum.output, argum.type, ext, argum.amplicon)
     variant_calling(argum.reference, argum.input, argum.output)
+    anotation(argm.output)
 
 
 if __name__ == "__main__":
